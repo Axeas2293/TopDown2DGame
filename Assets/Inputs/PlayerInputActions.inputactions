@@ -188,6 +188,7 @@
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
+<<<<<<< HEAD
                 },
                 {
                     "name": "OpenMenu",
@@ -206,6 +207,8 @@
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": true
+=======
+>>>>>>> parent of da348bc (Merge branch 'main' of https://github.com/Axeas2293/TopDown2DGame)
                 }
             ],
             "bindings": [
@@ -219,6 +222,7 @@
                     "action": "New action",
                     "isComposite": false,
                     "isPartOfComposite": false
+<<<<<<< HEAD
                 },
                 {
                     "name": "",
@@ -285,6 +289,8 @@
                     "action": "Navigate",
                     "isComposite": false,
                     "isPartOfComposite": true
+=======
+>>>>>>> parent of da348bc (Merge branch 'main' of https://github.com/Axeas2293/TopDown2DGame)
                 }
             ]
         }
