@@ -10,6 +10,11 @@ public class ItemDatabase : ScriptableObject
 
     public ItemTemplate GetItemByID(string id)
     {
+        if(string.IsNullOrEmpty(id))
+        {
+            Debug.LogWarning("GetItemByID was called with a null or empty id.");
+            return null;
+        }
         if (lookup.Count == 0)
         {
             foreach (var item in items)

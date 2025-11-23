@@ -53,6 +53,7 @@ public class InventoryBar : MonoBehaviour
     private void HandleActiveSlotChanged(int newSlotIndex)
     {
         UpdateHighlightForAllSlots(newSlotIndex);
+
     }
 
     private void HandleItemInSlotChanged(int slotIndex, ItemTemplate itemID)

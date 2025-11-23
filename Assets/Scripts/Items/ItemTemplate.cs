@@ -8,6 +8,9 @@ public class ItemTemplate : ScriptableObject
     public string nameID;
     public string description;
     public int maxStackSize;
+
+    public ItemType itemType;
+    public UseType useType;
     public enum ItemType
     {
         Consumable,
@@ -16,5 +19,16 @@ public class ItemTemplate : ScriptableObject
         Miscellaneous
     }
 
+    public enum UseType
+    {
+        None,
+        Tool_Axe,
+        Tool_Pickaxe,
+        Tool_Hoe,
+        Tool_WateringCan,
+        Seed,
+        Consumable,
+        PlaceableObject,
+    }
 
 }

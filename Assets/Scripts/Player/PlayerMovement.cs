@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
-public class Movement : MonoBehaviour
+public class PlayerMovement : MonoBehaviour
 {
     [Header("Components")]
     public Rigidbody2D _rb;
@@ -27,8 +27,6 @@ public class Movement : MonoBehaviour
 
     private void Awake()
     {
-        playerControls = new PlayerInputActions();
-        moveAction = playerControls.Player.Move;
         GameObject.DontDestroyOnLoad(this.gameObject);
     }
     void Start()
@@ -38,7 +36,6 @@ public class Movement : MonoBehaviour
 
     void Update()
     {
-        ReadMovementInput();
         SetAnimator();
     }
 
@@ -47,15 +44,12 @@ public class Movement : MonoBehaviour
         MovePlayer();
     }
 
-    private void OnEnable()
+    public void SetMoveInput(Vector2 input)
     {
-        playerControls.Player.Enable();
+        moveDirection = input;
     }
 
-    private void OnDisable()
-    {
-        playerControls.Player.Disable();
-    }
+
 
     void SetAnimator()
     {
@@ -68,10 +62,7 @@ public class Movement : MonoBehaviour
         _animator.SetFloat("movementSpeed", moveDirection.sqrMagnitude);
     }
 
-    void ReadMovementInput()
-    {
-        moveDirection = moveAction.ReadValue<Vector2>();
-    }
+
     void MovePlayer()
     {
         _rb.velocity = moveDirection * moveSpeed;

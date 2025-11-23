@@ -1,18 +1,18 @@
 {
   "context": {
-    "projectPath": "C:/Users/jonat/TopDown2DGame/Assets/Packages",
+    "projectPath": "C:/Users/jonat/TopDown2DGame/TopDown2DGame/Assets/Packages",
     "unityVersion": "6000.0.36f1"
   },
   "inputs": [
-    "C:\\Users\\jonat\\TopDown2DGame\\Assets\\Packages\\manifest.json",
-    "C:\\Users\\jonat\\TopDown2DGame\\Assets\\Packages\\packages-lock.json",
+    "C:\\Users\\jonat\\TopDown2DGame\\TopDown2DGame\\Assets\\Packages\\manifest.json",
+    "C:\\Users\\jonat\\TopDown2DGame\\TopDown2DGame\\Assets\\Packages\\packages-lock.json",
     "D:\\Unity\\6000.0.36f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\BuiltInPackagesCombined.sha1"
   ],
   "outputs": {
     "com.unity.multiplayer.center@1.0.0": {
       "name": "com.unity.multiplayer.center",
       "displayName": "Multiplayer Center",
-      "resolvedPath": "C:\\Users\\jonat\\TopDown2DGame\\Assets\\Library\\PackageCache\\com.unity.multiplayer.center@f502d8ac613f",
+      "resolvedPath": "C:\\Users\\jonat\\TopDown2DGame\\TopDown2DGame\\Assets\\Library\\PackageCache\\com.unity.multiplayer.center@f502d8ac613f",
       "fingerprint": "f502d8ac613fa076192423e73892fbd89eb4049b",
       "editorCompatibility": "6000.0.0a1",
       "version": "1.0.0",

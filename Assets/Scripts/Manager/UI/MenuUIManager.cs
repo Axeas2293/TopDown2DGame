@@ -29,7 +29,6 @@ public class UI_Manager : MonoBehaviour
 
         isOpen = false;
 
-        _menuInputActions = new MenuInputActions();
 
         uiRootInstance = Instantiate(UIRootPrefab);
         DontDestroyOnLoad(uiRootInstance);
@@ -46,21 +45,21 @@ public class UI_Manager : MonoBehaviour
 
     private void OnEnable()
     {
-        _menuInputActions.UI_Controls.Enable();
-        _menuInputActions.UI_Controls.Open_Menu.performed += OnOpenMenu;
+        InputService.Instance.OnMenuToggle += HandleMenuToggle;
     }
 
     private void OnDisable()
     {
-        if (_menuInputActions != null)
+        if(InputService.Instance != null)
         {
-            _menuInputActions.UI_Controls.Disable();
-            _menuInputActions.UI_Controls.Open_Menu.performed -= OnOpenMenu;
+            InputService.Instance.OnMenuToggle -= HandleMenuToggle;
         }
     }
 
 
-    private void OnOpenMenu(InputAction.CallbackContext ctx)
+
+
+    private void HandleMenuToggle()
     {
         isOpen = !isOpen;
         panels.UI_Panel_Menu.SetActive(isOpen);
@@ -68,11 +67,11 @@ public class UI_Manager : MonoBehaviour
         if (isOpen)
         {
 
-            Time.timeScale = 0f;
+            InputService.Instance.EnableUIControls();
         }
         else
         {
-            Time.timeScale = 1f;
+            InputService.Instance.EnablePlayerControls();
         }
     }
 

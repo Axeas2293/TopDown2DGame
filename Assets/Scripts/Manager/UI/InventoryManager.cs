@@ -12,12 +12,12 @@ public class InventoryManager : MonoBehaviour
     [Header("References")]
     public ItemDatabase itemDatabase;
 
-    // stores ONLY item IDs
+
     private string[] slotItemIDs;
 
     private int activeSlotIndex = 0;
 
-    // EVENTS
+
     public event Action<int> OnActiveSlotChanged;
     public event Action<int, ItemTemplate> OnItemInSlotChanged;
 
@@ -38,7 +38,6 @@ public class InventoryManager : MonoBehaviour
             slotItemIDs[i] = null;
     }
 
-    // -------- ACTIVE SLOT ----------
 
     public void SetActiveSlot(int slotIndex)
     {
@@ -52,12 +51,12 @@ public class InventoryManager : MonoBehaviour
         }
 
         activeSlotIndex = slotIndex;
+        Debug.Log("Active slot changed to: " + activeSlotIndex);
         OnActiveSlotChanged?.Invoke(activeSlotIndex);
     }
 
     public int GetActiveSlotIndex() => activeSlotIndex;
 
-    // -------- ITEM HANDLING ----------
 
     public void SetItemInSlot(int slotIndex, string itemID)
     {
@@ -66,7 +65,11 @@ public class InventoryManager : MonoBehaviour
             Debug.LogWarning($"Invalid slot index: {slotIndex}");
             return;
         }
-
+        if(itemID == null)
+        {
+            Debug.LogWarning("itemID is null");
+            return;
+        }
         slotItemIDs[slotIndex] = itemID;
 
         var item = itemDatabase.GetItemByID(itemID);
@@ -85,7 +88,7 @@ public class InventoryManager : MonoBehaviour
         return itemDatabase.GetItemByID(id);
     }
 
-    // -------- INTERNAL ----------
+
 
     private bool IsValidSlot(int index)
     {
