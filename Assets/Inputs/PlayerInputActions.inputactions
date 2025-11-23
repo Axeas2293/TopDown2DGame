@@ -188,26 +188,7 @@
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
-                }
-            ],
-            "bindings": [
-                {
-                    "name": "",
-                    "id": "a7ab09aa-3557-46ed-9e2e-b8da40ae7f8f",
-                    "path": "",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "",
-                    "action": "New action",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                }
-            ]
-        },
-        {
-            "name": "UI",
-            "id": "ecc895c6-9e3c-4f73-93a3-23cd3ad29510",
-            "actions": [
+                },
                 {
                     "name": "OpenMenu",
                     "type": "Button",
@@ -228,6 +209,17 @@
                 }
             ],
             "bindings": [
+                {
+                    "name": "",
+                    "id": "a7ab09aa-3557-46ed-9e2e-b8da40ae7f8f",
+                    "path": "",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "New action",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
                 {
                     "name": "",
                     "id": "7e661b51-675b-49b6-bd46-8a8018fef229",
