@@ -10,12 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9b13d94bb15e1fe4994dc4d2c71225ac, type: 3}
-  m_Name: Wood
+  m_Name: WoodAxe
   m_EditorClassIdentifier: Assembly-CSharp::ItemTemplate
-  displayedName: Wood
-  icon: {fileID: -6834524911116659543, guid: f9114696ba4d39b4f9beb90202827b75, type: 3}
-  nameID: wood
-  description: Is obtained from trees
-  maxStackSize: 10
-  itemType: 3
-  useType: 6
+  displayedName: WoodAxe
+  icon: {fileID: 662478330296687531, guid: 30dd59946492a81478e7c76b4e3f11b1, type: 3}
+  nameID: woodAxe
+  description: is used to cut trees
+  maxStackSize: 1
+  itemType: 1
+  useType: 1

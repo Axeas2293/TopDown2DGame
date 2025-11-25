@@ -13,7 +13,7 @@ public class InventoryManager : MonoBehaviour
     public ItemDatabase itemDatabase;
 
 
-    private string[] slotItemIDs;
+    private List<string> slotItemIDs;
 
     private int activeSlotIndex = 0;
 
@@ -33,10 +33,14 @@ public class InventoryManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
 
         // Initialize slot array
-        slotItemIDs = new string[slotCount];
+        slotItemIDs = new List<string>(slotCount);
         for (int i = 0; i < slotCount; i++)
-            slotItemIDs[i] = null;
+        {
+            slotItemIDs.Add("");
+        }
+        SetStartItems();
     }
+
 
 
     public void SetActiveSlot(int slotIndex)
@@ -65,11 +69,13 @@ public class InventoryManager : MonoBehaviour
             Debug.LogWarning($"Invalid slot index: {slotIndex}");
             return;
         }
-        if(itemID == null)
+        if (string.IsNullOrEmpty(itemID))
         {
-            Debug.LogWarning("itemID is null");
+            slotItemIDs[slotIndex] = "";
+            OnItemInSlotChanged?.Invoke(slotIndex, null);
             return;
         }
+
         slotItemIDs[slotIndex] = itemID;
 
         var item = itemDatabase.GetItemByID(itemID);
@@ -85,6 +91,12 @@ public class InventoryManager : MonoBehaviour
         }
 
         var id = slotItemIDs[slotIndex];
+
+
+        if (string.IsNullOrEmpty(id))
+            return null;
+
+
         return itemDatabase.GetItemByID(id);
     }
 
@@ -92,6 +104,15 @@ public class InventoryManager : MonoBehaviour
 
     private bool IsValidSlot(int index)
     {
-        return index >= 0 && index < slotItemIDs.Length;
+        return index >= 0 && index < slotItemIDs.Count;
+    }
+
+    private void SetStartItems()
+    {
+        SetItemInSlot(0, "wateringCan");
+        SetItemInSlot(1, "wateringCan");
+        SetItemInSlot(2, "woodAxe");
+
+
     }
 }

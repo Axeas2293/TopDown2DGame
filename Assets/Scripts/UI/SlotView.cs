@@ -4,7 +4,7 @@ using UnityEngine;
 public class SlotView : MonoBehaviour
 {
     [SerializeField] UnityEngine.UI.Image icon;
-    [SerializeField] UnityEngine.UI.Image backGroundImage;
+    [SerializeField] GameObject highLightObject;
     public Color highlightColor;
     public Color normalColor;
     bool isActive;
@@ -13,19 +13,29 @@ public class SlotView : MonoBehaviour
 
     public void SetIcon(Sprite sprite)
     {
-        icon.sprite = sprite;
-        icon.enabled = sprite != null;
+        if(sprite != null)
+        {
+            icon.sprite = sprite;
+        }
+        else
+        {
+            icon.sprite = null;
+        }
+            icon.enabled = sprite != null;
     }
 
     public void SetHighlighted(bool isActive)
     {
+        Debug.Log("SlotView: SetHighlighted called with" + isActive);
         if (isActive)
         {
-            backGroundImage.color = highlightColor;
+            Debug.Log("SlotView: SetHighlighted true");
+            highLightObject.SetActive(true);
         }
         else
-        {
-            backGroundImage.color = normalColor;
+        {  
+            highLightObject.SetActive(false);
         }
+
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class InputService : MonoBehaviour
 {
@@ -52,7 +53,7 @@ public class InputService : MonoBehaviour
         _inputActions.Player.ToolUse.performed += ctx => HandleToolUse(mousePosition);
         _inputActions.Player.SelectItem.performed += ctx => HandleSelectItem(ctx.ReadValue<float>());
 
-        mousePosition = GetMousePosition();
+        
     }
 
     private void OnEnable()
@@ -77,6 +78,7 @@ public class InputService : MonoBehaviour
 
     private void HandleToolUse(Vector2 mousePosition)
     {
+
         OnToolUse?.Invoke(mousePosition);
     }
 
@@ -86,12 +88,6 @@ public class InputService : MonoBehaviour
         OnItemSelect?.Invoke(itemSlot);
     }
 
-    private Vector2 GetMousePosition()
-    {
-        Vector3 worldPoint = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        Vector2 mousePosition = new Vector2(worldPoint.x, worldPoint.y);
-        return mousePosition;
-    }
 
 
     public void EnableUIControls()

@@ -12,10 +12,10 @@ public class Tree : MonoBehaviour, IItemUseHandler
     }
     private void ChopDownTree(PlayerInteract player, ItemTemplate item)
     {
-        // Logic to chop down the tree
-        maxHealthPoints -= 1;
+        maxHealthPoints--;  
         if (maxHealthPoints <= 0)
         {
+            //ToDo: Tree falling Animation and wood spawning
             Destroy(gameObject);
         }
             

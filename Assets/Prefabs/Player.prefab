@@ -15,6 +15,9 @@ GameObject:
   - component: {fileID: 4831622546089231950}
   - component: {fileID: 3888542656050522066}
   - component: {fileID: 5909877427165134477}
+  - component: {fileID: 2654647342457670001}
+  - component: {fileID: 73810556313723701}
+  - component: {fileID: 5194647664869119157}
   m_Layer: 9
   m_Name: Player
   m_TagString: Player
@@ -155,7 +158,7 @@ SpriteRenderer:
   m_LightmapParameters: {fileID: 0}
   m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: -1869315837
-  m_SortingLayer: 4
+  m_SortingLayer: 3
   m_SortingOrder: 0
   m_Sprite: {fileID: 2315132830120601726, guid: 4662384e219c55a4eadff838d4c19106,
     type: 3}
@@ -240,3 +243,45 @@ MonoBehaviour:
   moveX: 0
   moveY: 0
   movementSpeed: 0
+--- !u!114 &2654647342457670001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7492852317113277372}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bb530e48ccce9d74a87309d89f50a315, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerPersitent
+--- !u!114 &73810556313723701
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7492852317113277372}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d9f13390ecf77fc43867e8bebc3e6361, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerInputReceiver
+  _playerMovement: {fileID: 0}
+  _playerInteract: {fileID: 0}
+--- !u!114 &5194647664869119157
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7492852317113277372}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cfc54b37b145402489590fb7af1a2f93, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerInteract
+  interactableLayerMask:
+    serializedVersion: 2
+    m_Bits: 1024
+  _inventoryManager: {fileID: 0}

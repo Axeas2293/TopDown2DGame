@@ -17,3 +17,5 @@ MonoBehaviour:
   nameID: wateringCan
   description: Is used to water plants
   maxStackSize: 1
+  itemType: 1
+  useType: 4

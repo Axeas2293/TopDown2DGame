@@ -8,6 +8,7 @@ public class ItemTemplate : ScriptableObject
     public string nameID;
     public string description;
     public int maxStackSize;
+    public string animationTriggerName;
 
     public ItemType itemType;
     public UseType useType;

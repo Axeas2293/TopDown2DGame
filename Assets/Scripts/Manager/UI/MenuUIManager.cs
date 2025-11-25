@@ -38,7 +38,7 @@ public class UI_Manager : MonoBehaviour
         if (panels.UI_Panel_Menu != null)
             panels.UI_Panel_Menu.SetActive(false);
 
-
+        Initialize(InventoryManager.Instance);
 
     }
 
