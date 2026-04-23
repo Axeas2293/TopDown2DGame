@@ -1,0 +1,1739 @@
+# Stardew-Like Farming Game - Technical Documentation
+
+**Project Type:** Unity 2D Farming Game (Learning Project)  
+**Language:** C#  
+**Last Updated:** [Datum einfügen]
+
+---
+
+## 1. Architektur-Übersicht
+
+### High-Level Design
+```
+Bootstrap Scene (Initialization)
+    ↓
+Outside Scene (Main Gameplay)
+    ↓
+House_Interior, Farm, etc. (weitere Szenen via DoorTrigger)
+```
+
+### Ordnerstruktur
+```
+Scripts/
+├── Camera/          - Kamera-Steuerung & Follow-System
+├── Input/           - Input-Handling & Services
+├── Interactions/    - Interaktions-System (IItemUseHandler, Interactable)
+├── Inventory/       - Inventar-Datenstrukturen (InventorySlot)
+├── Items/           - Item-System, Drops, ItemTemplate
+├── Manager/         - Zentrale Manager (UI, Transitions, etc.)
+│   └── UI/          - UI-spezifische Manager
+├── Player/          - Player-Logik (Movement, Interact, Input)
+├── Scenes/          - Szenen-spezifische Skripte (Doors, SpawnPoints, MainMenu)
+├── UI/              - UI-Komponenten (SlotView, Tabs, Panels)
+└── WorldObjects/    - Interaktive Objekte (Trees, Items)
+    └── SpecificObjects/ - Spezifische Implementierungen (Tree.cs)
+```
+
+### Core Patterns
+- **Singleton**: Player, Manager (via BootStrapper)
+- **Service Pattern**: InputService, DropSystem
+- **Event-Driven**: Input, Inventory, HotBar kommunizieren via C# Events
+- **DontDestroyOnLoad**: Alle Manager, Player und UI_Root bleiben persistent über Szenen
+- **Interface-Based Interaction**: IItemUseHandler für Tool-System
+
+---
+
+### Camera-System
+
+**Hierarchy:**
+```
+CameraController (Parent GameObject - nur Organisation)
+├── Main Camera
+└── CinemachineCamera (Virtual Camera)
+```
+
+**Komponenten:**
+- **Main Camera**: Standard Unity Camera
+- **CinemachineCamera**: Cinemachine Virtual Camera
+  - Follow Target: Player
+  - Smooth Damping für sanfte Bewegung
+  - [Kein Confiner aktuell - Kamera kann über Map-Grenzen hinaus]
+
+**FollowInitializer:**
+```csharp
+// Scripts/Camera/FollowInitializer.cs
+public class FollowInitializer : MonoBehaviour
+{
+    private CinemachineVirtualCamera virtualCamera;
+    
+    void Start()
+    {
+        virtualCamera = GetComponent<CinemachineVirtualCamera>();
+        
+        // Warte bis Player existiert (DontDestroyOnLoad)
+        if (Player.Instance != null)
+        {
+            virtualCamera.Follow = Player.Instance.transform;
+        }
+    }
+}
+```
+
+**Flow - Kamera-Setup bei Szene-Load:**
+```
+Neue Szene wird geladen (z.B. Outside)
+    ↓
+FollowInitializer.Start() wird aufgerufen
+    ↓
+Sucht Player.Instance (existiert bereits via DontDestroyOnLoad)
+    ↓
+Setzt CinemachineCamera.Follow = Player.transform
+    ↓
+Kamera folgt Player smooth über Cinemachine
+```
+
+**Aktueller Status:**
+- ✓ Smooth Camera-Follow funktioniert
+- ⚠ Kein Confiner (Kamera kann außerhalb der Map gehen)
+- ⚠ Keine Kamera-Zonen für verschiedene Bereiche
+
+**Zukünftige Verbesserungen:**
+```
+- Cinemachine Confiner hinzufügen (Polygon Collider für Map-Grenzen)
+- Kamera-Zonen für spezielle Bereiche (z.B. Nahaufnahme bei Crafting-Bench)
+- Smooth Zoom bei verschiedenen Aktivitäten
+```
+
+---
+
+## 2. Szenen-Setup & Lifecycle
+
+### Bootstrap Scene
+**Zweck:** Initialisiert alle Manager und lädt die Start-Szene
+
+**Hierarchy:**
+```
+Bootstrap
+└── BootStrapper (Script)
+```
+
+**Flow:**
+```
+1. BootStrapper.Awake()
+2. Erstellt/Lädt alle Manager:
+   - HotBarManager
+   - InventoryManager
+   - SceneTransitionManager
+   - InputService (?)
+   - [weitere Manager auflisten]
+3. DontDestroyOnLoad() auf Manager anwenden
+4. Lädt "Outside" Scene
+```
+
+**Code-Hinweise:**
+```
+// Beispiel: Welche Manager werden wie initialisiert?
+// Singleton-Pattern? FindObjectOfType? Dependency Injection?
+```
+
+---
+
+### Outside Scene (Main Gameplay)
+**Hierarchy:**
+```
+Outside
+├── Global Light 2D
+├── Grid
+│   └── Ground (Tilemap/Sprites?)
+├── CameraController
+│   ├── Main Camera
+│   └── CinemachineCamera
+├── Rooms (?)
+├── EventSystem
+├── PlayerSpawnPoints
+└── WorldObjects
+    ├── Tree
+    └── DropItem
+
+DontDestroyOnLoad (während Gameplay):
+├── Player (Prefab, Singleton)
+│   ├── Sprite
+│   ├── toolHitBoxPointUp
+│   ├── toolHitBoxPointDown
+│   ├── toolHitBoxPointLeft
+│   └── toolHitBoxPointRight
+├── HotBarManager
+├── Inventory_Manager
+├── Input_Manager
+├── SceneTransitionManager
+├── UIManager
+└── UI_Root(Clone)
+    └── Canvas
+        ├── UI_Panel_Menu
+        ├── UI_Panel_Tabs
+        ├── UI_Panel_Contents
+        └── UI_Bottom_Inventory_Bar
+```
+
+**Scene Load Flow:**
+```
+1. Bootstrap lädt Outside
+2. Player wird gespawnt (wo? SpawnPoint-System?)
+3. Camera folgt Player
+4. [Was passiert noch beim Scene-Start?]
+```
+
+---
+
+## 3. Core-Systeme
+
+### BootStrapper
+**Verantwortlichkeit:**
+- Initialisiert alle Manager beim Spielstart
+- Wendet DontDestroyOnLoad auf Manager an
+- Lädt die erste Spielszene (Outside)
+
+**Wichtige Methoden:**
+```
+Awake() - Erstellt/findet alle Manager-Instanzen
+InitializeManagers() - [Wie genau? FindObjectOfType? Instantiate Prefabs?]
+```
+
+---
+
+### InputService (Service Pattern)
+**Verantwortlichkeit:**
+- Zentrale Input-Verwaltung mit Unity's New Input System
+- Feuert Events für verschiedene Input-Actions
+- Entkoppelt Input von Game-Logik
+
+**Abonnenten:**
+- `PlayerInputReceiver` - für Movement, Tool Use, Interact
+- `InventoryInputHandler` - für Inventory öffnen, HotBar-Selection
+
+**Flow:**
+```
+Unity Input System erfasst Input (z.B. WASD, E, Maus)
+    ↓
+InputService.OnMovePerformed/OnInteractPerformed Events
+    ↓
+PlayerInputReceiver/InventoryInputHandler reagieren
+    ↓
+Entsprechende Game-Logik wird ausgeführt
+```
+
+**Beispiel Events:**
+```csharp
+// Im InputService (vermutlich):
+public event Action<Vector2> OnMovePerformed;
+public event Action OnInteractPerformed;
+public event Action OnUseToolPerformed;
+public event Action OnOpenInventoryPerformed;
+```
+
+---
+
+### SceneTransitionManager
+**Verantwortlichkeit:**
+- Verwaltet Szenenwechsel zwischen Bereichen (Outside ↔ House ↔ etc.)
+- Spawnt Player an korrektem SpawnPoint nach Transition
+- Asynchrones Laden für bessere Performance
+
+**Flow - Szene wechseln:**
+```
+1. Player betritt DoorTrigger (z.B. Haus-Eingang)
+    ↓
+2. DoorTrigger.OnTriggerEnter2D(Collider2D other)
+    - Prüft ob "other" der Player ist
+    - Ruft SceneTransitionManager.LoadScene(targetSceneName, spawnPointID)
+    ↓
+3. SceneTransitionManager.LoadScene(string sceneName, string spawnID)
+    - [Optional: Fade-Out Animation?]
+    - SceneManager.LoadSceneAsync(sceneName)
+    - Speichert spawnID für nächste Szene
+    ↓
+4. Neue Szene lädt
+    - SceneTransitionManager.OnSceneLoaded() wird aufgerufen
+    ↓
+5. Player spawnen:
+    - SpawnPoint spawnPoint = FindSpawnPointByID(spawnID)
+    - if (spawnPoint != null)
+      {
+          player.transform.position = spawnPoint.transform.position;
+      }
+```
+
+**Code-Struktur:**
+```csharp
+public class SceneTransitionManager : MonoBehaviour
+{
+    private string nextSpawnPointID;
+    
+    public void LoadScene(string sceneName, string spawnPointID)
+    {
+        nextSpawnPointID = spawnPointID;
+        StartCoroutine(LoadSceneAsync(sceneName));
+    }
+    
+    private IEnumerator LoadSceneAsync(string sceneName)
+    {
+        // [Optional: Fade-Out]
+        
+        AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(sceneName);
+        
+        while (!asyncLoad.isDone)
+        {
+            yield return null;
+        }
+        
+        // Nach dem Laden: Player spawnen
+        SpawnPlayerAtPoint(nextSpawnPointID);
+    }
+    
+    private void SpawnPlayerAtPoint(string spawnID)
+    {
+        SpawnPoint spawnPoint = FindSpawnPointByID(spawnID);
+        if (spawnPoint != null)
+        {
+            Player.Instance.transform.position = spawnPoint.transform.position;
+        }
+    }
+}
+```
+
+**Aktueller Status:**
+- ✓ Basis-Funktionalität vorhanden
+- ⚠ Noch rudimentär (IDs werden bei Türen mitgegeben)
+- ⚠ Fade-Effekte möglicherweise noch nicht implementiert
+- ⚠ Error-Handling wenn SpawnPoint nicht gefunden wird?
+
+---
+
+### DoorTrigger
+**Verantwortlichkeit:**
+- Trigger-Collider an Türen/Übergängen
+- Startet Szenenwechsel wenn Player hindurchgeht
+
+**Komponenten:**
+- BoxCollider2D oder CircleCollider2D (Is Trigger = true)
+- DoorTrigger Script
+
+**Properties:**
+```csharp
+[SerializeField] private string targetSceneName;  // z.B. "House_Interior"
+[SerializeField] private string targetSpawnPointID; // z.B. "house_entrance_inside"
+```
+
+**Implementation:**
+```csharp
+private void OnTriggerEnter2D(Collider2D other)
+{
+    if (other.CompareTag("Player")) // oder andere Player-Erkennung
+    {
+        SceneTransitionManager.Instance.LoadScene(targetSceneName, targetSpawnPointID);
+    }
+}
+```
+
+**Beispiel-Setup:**
+```
+Outside Scene:
+- HausTür (GameObject)
+  └── DoorTrigger (Script)
+      - targetSceneName: "House_Interior"
+      - targetSpawnPointID: "entrance_from_outside"
+
+House_Interior Scene:
+- ExitDoor (GameObject)
+  └── DoorTrigger (Script)
+      - targetSceneName: "Outside"
+      - targetSpawnPointID: "house_entrance_outside"
+```
+
+---
+
+### SpawnPoint
+**Verantwortlichkeit:**
+- Markiert Position, wo Player spawnen soll
+- Identifiziert sich über string ID
+
+**Komponenten:**
+- Empty GameObject (oder mit Icon/Gizmo im Editor)
+- SpawnPoint Script
+
+**Properties:**
+```csharp
+[SerializeField] private string spawnPointID; // Eindeutige ID z.B. "house_entrance_inside"
+```
+
+**Implementation:**
+```csharp
+public class SpawnPoint : MonoBehaviour
+{
+    [SerializeField] private string spawnPointID;
+    
+    public string ID => spawnPointID;
+    
+    // Optional: Gizmo im Editor für bessere Sichtbarkeit
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(transform.position, 0.5f);
+    }
+}
+```
+
+**Wie wird SpawnPoint gefunden:**
+```csharp
+private SpawnPoint FindSpawnPointByID(string id)
+{
+    SpawnPoint[] allSpawnPoints = FindObjectsOfType<SpawnPoint>();
+    foreach (var sp in allSpawnPoints)
+    {
+        if (sp.ID == id)
+            return sp;
+    }
+    
+    Debug.LogWarning($"SpawnPoint with ID '{id}' not found!");
+    return null; // Oder default SpawnPoint?
+}
+```
+
+**Best Practice:**
+- Jede Szene sollte mindestens einen SpawnPoint haben
+- Naming Convention: `[szene]_[location]` (z.B. "house_entrance", "outside_house_door")
+
+---
+
+### Rooms (?)
+**Verantwortlichkeit:**
+- [Was sind "Rooms" in der Outside-Szene?]
+- [Sind das Collider-Bereiche für Kamera-Zonen?]
+- [Oder Sub-Szenen die geladen/entladen werden?]
+
+**Status:** Noch unklar
+
+**Mögliche Interpretation:**
+```
+Rooms könnte sein:
+1. Kamera-Confined-Bereiche (Cinemachine Confiner)
+2. Audio-Zonen (verschiedene Ambient-Sounds)
+3. Streaming-Bereiche (für große Open-World)
+4. Einfach organisatorische GameObjects
+```
+
+---
+
+## 4. Player-System
+
+### Player (Singleton Prefab)
+**Komponenten:**
+- PlayerMovement - Bewegung und Animationen
+- PlayerInteract - Tool-Nutzung und Interaktionen
+- PlayerInputReceiver - Empfängt Input von InputService
+- PlayerPersistent - [Noch unklar - vermutlich für Save-Data?]
+- Rigidbody2D - Für Physics-basierte Bewegung
+- Animator - Steuert Walk/Idle/Tool-Animationen in 4 Richtungen
+
+**HitBox-System:**
+```
+Player hat 4 ToolHitBoxPoints (Up/Down/Left/Right)
+- Empty GameObjects mit Position relativ zum Player
+- Werden für OverlapCircleAll bei Tool-Usage verwendet
+- Aktiver HitBoxPoint basiert auf Blickrichtung (facingDirection)
+```
+
+**Blickrichtung:**
+```
+facingDirection wird in PlayerMovement gesetzt basierend auf Input
+PlayerInteract nutzt facingDirection, um richtigen ToolHitBoxPoint zu wählen
+```
+
+---
+
+### PlayerInputReceiver
+**Verantwortlichkeit:**
+- Abonniert Events vom InputService
+- Leitet Input an PlayerMovement und PlayerInteract weiter
+- Entkoppelt Input-System von Player-Logik
+
+**Flow:**
+```
+InputService.OnMovePerformed Event
+    ↓
+PlayerInputReceiver.HandleMove(Vector2 direction)
+    ↓
+PlayerMovement.Move(direction)
+
+InputService.OnUseToolPerformed Event
+    ↓
+PlayerInputReceiver.HandleUseTool()
+    ↓
+PlayerInteract.TryUseTool()
+```
+
+---
+
+### PlayerMovement
+**Verantwortlichkeit:**
+- Bewegt Player mit konstanter Geschwindigkeit
+- Setzt Blickrichtung (facingDirection) basierend auf Input
+- Steuert Walk/Idle Animationen in 4 Richtungen
+
+**Implementation:**
+```csharp
+// Bewegung über Rigidbody2D
+void Move(Vector2 direction)
+{
+    rb.velocity = direction.normalized * moveSpeed;
+    
+    // Blickrichtung setzen (für ToolHitBoxPoints)
+    if (direction != Vector2.zero)
+    {
+        facingDirection = direction; // Up, Down, Left, Right
+    }
+    
+    // Animator Parameter setzen
+    animator.SetFloat("MoveX", direction.x);
+    animator.SetFloat("MoveY", direction.y);
+    animator.SetBool("IsMoving", direction != Vector2.zero);
+}
+```
+
+**Eigenschaften:**
+- `moveSpeed` - Konstante Geschwindigkeit
+- `facingDirection` - Vector2 (z.B. Vector2.up für oben)
+
+---
+
+### PlayerInteract
+**Verantwortlichkeit:**
+- Tool-Nutzung (Axt schwingen, etc.)
+- Context-Interaktionen (Schilder lesen, etc.) [noch unfertig]
+- Erkennt interaktive Objekte per OverlapCircleAll
+
+**Flow - Tool verwenden:**
+```
+1. PlayerInputReceiver ruft TryUseTool() auf
+    ↓
+2. TryUseTool():
+   - Holt aktives Item von InventoryManager/HotBarManager
+   - Spielt Tool-Animation (z.B. "Axe_Swing_Up")
+    ↓
+3. Animation läuft ab:
+   - Am Ende der Animation: Animation Event "OnToolHit"
+    ↓
+4. OnToolHit():
+   - Wählt richtigen ToolHitBoxPoint basierend auf facingDirection
+   - OverlapCircleAll(hitBoxPoint.position, radius)
+   - Für jedes gefundene Collider:
+     - Prüft auf IItemUseHandler Component
+     - Ruft IItemUseHandler.OnItemUse(activeItem, player) auf
+```
+
+**Code-Struktur:**
+```csharp
+public void TryUseTool()
+{
+    ItemTemplate activeItem = hotBarManager.GetActiveItem();
+    if (activeItem == null) return;
+    
+    // Animation abspielen (hat OnToolHit Event am Ende)
+    string animName = $"Tool_Use_{GetDirectionString(facingDirection)}";
+    animator.Play(animName);
+}
+
+// Wird von Animation Event aufgerufen
+public void OnToolHit()
+{
+    Transform hitPoint = GetHitBoxPointForDirection(facingDirection);
+    Collider2D[] hits = Physics2D.OverlapCircleAll(hitPoint.position, hitRadius);
+    
+    foreach (var hit in hits)
+    {
+        IItemUseHandler handler = hit.GetComponent<IItemUseHandler>();
+        if (handler != null)
+        {
+            ItemTemplate activeItem = hotBarManager.GetActiveItem();
+            handler.OnItemUse(activeItem, this);
+        }
+    }
+}
+```
+
+**Animation Event System:**
+- Jede Tool-Animation (Up/Down/Left/Right) hat Animation Event am Ende
+- Event ruft `OnToolHit()` auf
+- So trifft der Tool-Hit erst, wenn Animation den Schlag zeigt
+
+**Context Interact (unfertig):**
+```
+// Für Interaktionen ohne Item (Schilder, NPCs, Türen)
+// Vermutlich ähnlicher Flow, aber mit Interactable.Interact()
+```
+
+---
+
+### PlayerPersistent
+**Verantwortlichkeit:**
+- [TODO: Was macht diese Komponente genau?]
+- [Speichert Player-Position zwischen Szenen?]
+- [Verwaltet Save-Data?]
+
+---
+
+## 5. Inventory & Items
+
+### Inventory-Architektur Übersicht
+```
+InventoryManager (Data Layer)
+    ↓ Events
+HotBarManager (Selection Logic) 
+    ↓ Events
+InventoryBar (UI Layer - HotBar anzeigen)
+
+[UI für großes Inventar noch nicht implementiert]
+```
+
+---
+
+### InventoryManager
+**Verantwortlichkeit:**
+- Verwaltet alle Inventar-Daten
+- Stellt Methoden für Add/Remove/Query bereit
+- Feuert Events bei Änderungen
+
+**Datenstruktur:**
+```csharp
+private List<InventorySlot> inventory = new List<InventorySlot>();
+// Keine feste Slot-Anzahl definiert (dynamisch oder wird später festgelegt)
+```
+
+**HotBar-Integration:**
+```csharp
+// HotBar ist NICHT separate Liste, sondern Referenz auf Inventar-Slots
+// z.B. HotBar[0] zeigt auf inventory[5], HotBar[1] auf inventory[12], etc.
+```
+
+**Verfügbare Methoden:**
+```csharp
+AddItem(ItemTemplate item, int amount)
+RemoveItem(ItemTemplate item, int amount)
+CanAddFully(ItemTemplate item, int amount) - Prüft ob Platz vorhanden
+GetInventorySlotCopy(int index) - Gibt Kopie zurück (safe)
+GetInventorySlotReference(int index) - Gibt Referenz zurück (direkter Zugriff)
+// [Weitere Hilfsmethoden...]
+```
+
+**Status der Implementation:**
+- ✓ Basis-Methoden vorhanden
+- ⚠ Stack-Logik bei AddItem noch nicht vollständig
+- ⚠ "Inventar voll"-Handling noch offen
+- ⚠ UI für großes Inventar fehlt noch
+
+**Events:**
+```csharp
+// Feuert Event wenn Inventar sich ändert
+public event Action OnInventoryChanged;
+// [Möglicherweise weitere Events]
+```
+
+**Flow - Item hinzufügen:**
+```
+PickUpItem.OnTriggerEnter2D()
+    ↓
+InventoryManager.AddItem(itemTemplate, amount)
+    ↓
+[TODO: Prüft auf stackbare Items, sucht freie Slots]
+    ↓
+OnInventoryChanged Event gefeuert
+    ↓
+InventoryBar/HotBarManager reagieren auf Event
+    ↓
+UI wird aktualisiert
+```
+
+---
+
+### HotBarManager
+**Verantwortlichkeit:**
+- Verwaltet Auswahl der 9 HotBar-Slots
+- Mappt HotBar-Index auf Inventar-Index
+- Feuert Events bei Slot-Wechsel
+
+**Datenstruktur:**
+```csharp
+private List<int> hotbarSlotToInventoryIndex = new List<int>(9);
+// Beispiel: hotbarSlotToInventoryIndex[0] = 5 bedeutet
+// HotBar Slot 0 zeigt auf Inventar Slot 5
+
+private int currentlySelectedSlot = 0; // 0-8
+```
+
+**HotBar-Slots:** 9 Slots (0-8), entsprechen Tasten 1-9
+
+**Flow - Slot auswählen:**
+```
+Player drückt Taste "1" (oder "2", "3", etc.)
+    ↓
+InputService.OnHotBarSlotPressed(int slotNumber) Event
+    ↓
+InventoryInputHandler empfängt Event
+    ↓
+HotBarManager.SelectSlot(slotNumber - 1) // 0-indexed
+    ↓
+currentlySelectedSlot = slotNumber - 1
+    ↓
+OnHotBarSelectionChanged Event gefeuert
+    ↓
+InventoryBar.UpdateSelection() - Hebt aktiven Slot hervor
+```
+
+**Wichtige Methoden:**
+```csharp
+SelectSlot(int index) - Setzt aktiven Slot (0-8)
+GetActiveItem() - Gibt ItemTemplate des aktuell ausgewählten Slots zurück
+    {
+        int inventoryIndex = hotbarSlotToInventoryIndex[currentlySelectedSlot];
+        InventorySlot slot = inventoryManager.GetInventorySlotCopy(inventoryIndex);
+        return slot?.item; // Kann null sein wenn Slot leer
+    }
+```
+
+**Events:**
+```csharp
+public event Action<int> OnHotBarSelectionChanged;
+```
+
+---
+
+### ItemTemplate (ScriptableObject)
+**Verantwortlichkeit:**
+- Definiert alle Eigenschaften eines Items
+- Wird in Unity Editor erstellt (Assets/Items/)
+- Referenziert von Inventory, Drops, etc.
+
+**Properties:**
+```csharp
+[Header("Display")]
+public string displayedName;        // Anzeigename für UI
+public Sprite icon;                 // Icon für UI
+public string description;          // Beschreibung für Tooltips
+
+[Header("Technical")]
+public string nameID;               // Eindeutige ID (für Save-System, Vergleiche)
+public int maxStackSize;            // Max. Anzahl pro Slot
+
+[Header("Functionality")]
+public ItemType itemType;           // Kategorie des Items
+public UseType useType;             // Wie wird Item verwendet
+public string animationTriggerName; // Welche Animation bei Tool-Use
+```
+
+**Item-Type System:**
+```csharp
+public enum ItemType
+{
+    Consumable,      // Essbare Items, Tränke
+    Equipment,       // Tools, Waffen (?)
+    Quest,          // Quest-spezifische Items
+    Miscellaneous   // Sonstiges (Materialien, etc.)
+}
+
+public enum UseType
+{
+    None,                // Kein Use-Verhalten
+    Tool_Axe,           // Fällt Bäume (IItemUseHandler)
+    Tool_Pickaxe,       // Baut Steine ab
+    Tool_Hoe,           // Bereitet Boden vor
+    Tool_WateringCan,   // Gießt Pflanzen
+    Seed,               // Pflanzt Crops
+    Consumable,         // Wird gegessen/getrunken
+    PlaceableObject     // Platziert Objekt in Welt
+}
+```
+
+**Design-Prinzip:**
+- **ItemType**: Organisatorische Kategorie (für Inventar-Tabs, Sortierung)
+- **UseType**: Funktionales Verhalten (für PlayerInteract, IItemUseHandler)
+
+**Beispiel-Items:**
+```
+Axt:
+- displayedName: "Axt"
+- itemType: Equipment
+- useType: Tool_Axe
+- animationTriggerName: "Tool_Axe"
+- maxStackSize: 1
+
+Holz:
+- displayedName: "Holz"
+- itemType: Miscellaneous
+- useType: None
+- maxStackSize: 99
+
+Karottensamen:
+- displayedName: "Karottensamen"
+- itemType: Miscellaneous
+- useType: Seed
+- maxStackSize: 99
+```
+
+---
+
+### InventorySlot
+**Verantwortlichkeit:**
+- Datenstruktur für einen einzelnen Inventar-Slot
+- Kapselt Item + Menge
+
+**Eigenschaften:**
+```csharp
+public class InventorySlot
+{
+    public ItemTemplate item;  // Welches Item (null = leer)
+    public int amount;         // Anzahl (1-maxStackSize)
+    
+    public bool IsEmpty => item == null || amount <= 0;
+    public bool CanStack(ItemTemplate otherItem) 
+    {
+        return item != null && item == otherItem && amount < item.maxStackSize;
+    }
+}
+```
+
+---
+
+### ItemDataBase
+**Verantwortlichkeit:**
+- Zentrale Registry aller Items im Spiel
+- Lädt alle ItemTemplate ScriptableObjects
+- Ermöglicht Lookup per nameID
+
+**Implementation:**
+```csharp
+// Vermutlich:
+public class ItemDataBase : MonoBehaviour
+{
+    private Dictionary<string, ItemTemplate> itemsByID;
+    
+    void Awake()
+    {
+        // Lädt alle ItemTemplates aus Resources/Items/ Ordner
+        ItemTemplate[] allItems = Resources.LoadAll<ItemTemplate>("Items");
+        itemsByID = allItems.ToDictionary(item => item.nameID);
+    }
+    
+    public ItemTemplate GetItemByID(string nameID)
+    {
+        return itemsByID.TryGetValue(nameID, out var item) ? item : null;
+    }
+}
+```
+
+**Zweck:**
+- Save-System: Speichere nur nameID statt ganzes Objekt
+- Netzwerk: Übertrage nur IDs
+- Drop-Tables: Referenziere Items per String
+
+---
+
+### DropSystem & DropTable
+**Verantwortlichkeit:**
+- Spawnt Items in der Welt
+- Verwaltet Drop-Chancen und Mengen
+
+**DropTable (ScriptableObject):**
+```csharp
+[System.Serializable]
+public class DropEntry
+{
+    public ItemTemplate item;
+    public int minAmount;
+    public int maxAmount;
+    public float dropChance; // 0.0 - 1.0
+}
+
+public class DropTable : ScriptableObject
+{
+    public List<DropEntry> possibleDrops;
+}
+```
+
+**DropSystem Flow:**
+```
+Tree.OnTreeFelled()
+    ↓
+DropSystem.SpawnDrops(dropTable, position)
+    ↓
+Für jeden DropEntry in dropTable:
+    - Roll Random.value gegen dropChance
+    - Wenn erfolgreich: Random.Range(minAmount, maxAmount)
+    - Instantiate(droppedItemPrefab, position)
+    - DroppedItem.Initialize(itemTemplate, amount)
+```
+
+**Aktueller Status:**
+- ⚠ Drop-System noch nicht richtig implementiert
+- ⚠ Drops spawnen möglicherweise nicht zuverlässig
+
+---
+
+## 6. Interactions & World Objects
+
+### IItemUseHandler (Interface)
+**Verantwortlichkeit:**
+- Contract für Objekte, die auf Item-Nutzung reagieren
+- Ermöglicht Tool-System (Axt auf Baum, Gießkanne auf Crop, etc.)
+
+**Interface:**
+```csharp
+public interface IItemUseHandler
+{
+    void OnItemUse(ItemTemplate item, Player player);
+}
+```
+
+**Implementierungen:**
+- Tree - Reagiert auf Axt
+- [Crop - Reagiert auf Gießkanne?]
+- [Rock - Reagiert auf Spitzhacke?]
+
+**Flow:**
+```
+PlayerInteract.OnToolHit() findet IItemUseHandler-Objekte
+    ↓
+Ruft OnItemUse(activeItem, player) auf
+    ↓
+Objekt prüft Item-Type und reagiert entsprechend
+```
+
+---
+
+### Interactable (Interface/Base Class?)
+**Verantwortlichkeit:**
+- [Basis für Context-Interaktionen ohne Item]
+- [z.B. Schilder lesen, NPCs ansprechen, Türen öffnen]
+
+**Status:** [Noch unfertig]
+
+**Geplanter Flow:**
+```
+Player drückt Interact-Taste (ohne aktives Tool-Item)
+    ↓
+PlayerInteract.TryContextInteract()
+    ↓
+Raycast/OverlapCircle sucht Interactable
+    ↓
+Interactable.Interact(player)
+```
+
+---
+
+### Tree
+**Verantwortlichkeit:**
+- Kann mit Axt gefällt werden
+- Hat Health-System
+- Droppt Items (Holz) beim Fällen
+
+**Implementation:**
+```csharp
+public class Tree : MonoBehaviour, IItemUseHandler
+{
+    [SerializeField] private int maxHealth = 3;
+    [SerializeField] private ItemTemplate requiredTool; // Axt
+    [SerializeField] private DropTable dropTable;
+    private int currentHealth;
+    
+    public void OnItemUse(ItemTemplate item, Player player)
+    {
+        // Prüfe ob richtiges Tool (Axt)
+        if (item != requiredTool) return;
+        
+        // Tree nimmt Schaden
+        currentHealth--;
+        
+        // TODO: Play hit animation/sound
+        
+        if (currentHealth <= 0)
+        {
+            OnTreeFelled();
+        }
+    }
+    
+    private void OnTreeFelled()
+    {
+        // Spawn Drops (Holz, Seeds, etc.)
+        // [Noch nicht richtig implementiert]
+        DropSystem.SpawnDrops(dropTable, transform.position);
+        
+        // Tree zerstören
+        Destroy(gameObject);
+    }
+}
+```
+
+**Aktueller Status:**
+- Tree kann Schaden nehmen ✓
+- Tree wird gefällt ✓
+- Drop-System funktioniert noch nicht richtig ⚠
+
+---
+
+### DroppedItem
+**Verantwortlichkeit:**
+- Repräsentiert Item, das in der Welt liegt
+- Kann vom Player aufgesammelt werden
+
+**Komponenten:**
+- SpriteRenderer - Zeigt Item-Icon
+- Collider2D (Trigger) - Für Pickup-Detection
+
+**Flow:**
+```
+Player läuft über DroppedItem
+    ↓
+PickUpItem.OnTriggerEnter2D(Collider2D other)
+    ↓
+Prüft ob "other" der Player ist
+    ↓
+InventoryManager.AddItem(itemTemplate, amount)
+    ↓
+Wenn erfolgreich: Destroy(gameObject)
+```
+
+---
+
+## 7. UI-System
+
+### UI-Architektur
+```
+UI_Root (DontDestroyOnLoad)
+└── Canvas
+    ├── UI_Panel_Menu (Inventar-Overlay - togglebar)
+    │   ├── UI_Panel_Tabs (Links: Tab-Buttons)
+    │   └── UI_Panel_Contents (Rechts: Aktiver Tab-Inhalt)
+    └── UI_Bottom_Inventory_Bar (HotBar - permanent sichtbar)
+```
+
+**UI-Hierarchie:**
+- **UI_Panel_Menu**: Das gesamte Inventar-UI (kann geöffnet/geschlossen werden)
+- **UI_Panel_Tabs**: Linke Seite mit Tab-Buttons (Inventory, Crafting, Skills, etc.)
+- **UI_Panel_Contents**: Rechte Seite, zeigt Inhalt des aktiven Tabs
+- **UI_Bottom_Inventory_Bar**: Permanent sichtbare HotBar (9 Slots)
+
+**Aktueller Status:**
+- ✓ HotBar funktioniert und ist sichtbar
+- ⚠ Tabs noch nicht implementiert (UI-Struktur vorhanden, aber leer)
+- ⚠ Tab-Switching-Logik fehlt noch
+- ⚠ Große Inventar-Ansicht (Grid) noch nicht implementiert
+
+---
+
+### MenuUIManager
+**Verantwortlichkeit:**
+- Öffnet/Schließt das Inventar-Menü
+- Wechselt Input-Context zwischen Gameplay und UI
+- [Vermutlich auch Pause-Logik]
+
+**Flow - Menü öffnen/schließen:**
+```
+Player drückt "I"
+    ↓
+InputService.OnToggleInventory Event
+    ↓
+InventoryInputHandler.HandleToggleInventory()
+    ↓
+MenuUIManager.ToggleMenu()
+    ↓
+if (isMenuOpen):
+    - UI_Panel_Menu.SetActive(false)
+    - Wechsle zu Player Controls (Input Action Map)
+    - [Time.timeScale = 1 ?]
+else:
+    - UI_Panel_Menu.SetActive(true)
+    - Wechsle zu UI Controls (Input Action Map)
+    - [Time.timeScale = 0 ?]
+```
+
+**Input-Context Switching:**
+```csharp
+// Unity Input System: Action Maps
+PlayerControls (Movement, Interact, UseTool, ToggleInventory)
+    ↓ Toggle zu
+UI_Controls (NavigateTabs, CloseMenu, SelectSlot?)
+
+// Status: Möglicherweise noch nicht vollständig funktional
+```
+
+**Offene Fragen:**
+- Wird `Time.timeScale` auf 0 gesetzt?
+- Wird Player-Movement blockiert während Menü offen?
+- Kann man mit ESC das Menü schließen?
+
+---
+
+### TabManager
+**Verantwortlichkeit:**
+- Wechselt zwischen verschiedenen Tabs (Inventory, Crafting, Skills, etc.)
+- Zeigt entsprechenden Content in UI_Panel_Contents an
+
+**Status:** Noch nicht implementiert
+
+**Geplante Funktionalität:**
+```
+Player klickt auf Tab-Button (z.B. "Crafting")
+    ↓
+TabManager.SwitchToTab(TabType.Crafting)
+    ↓
+Deaktiviert aktuellen Content-Panel
+    ↓
+Aktiviert entsprechenden Content-Panel (CraftingPanel)
+    ↓
+Panel füllt sich mit Daten (z.B. verfügbare Rezepte)
+```
+
+**Mögliche Tabs (geplant):**
+- Inventory (Item-Grid)
+- Crafting (Rezepte)
+- Skills (Skill-Tree?)
+- Map (Welt-Karte?)
+- Quest-Log
+
+---
+
+### InventoryBar (HotBar UI)
+**Verantwortlichkeit:**
+- Zeigt permanent die 9 HotBar-Slots am unteren Bildschirmrand
+- Updated Icons wenn Inventar sich ändert
+- Hebt aktuell ausgewählten Slot hervor
+
+**UI-Struktur:**
+```
+UI_Bottom_Inventory_Bar
+├── Slot_1 (SlotView)
+│   ├── Icon (Image)
+│   ├── Amount (Text)
+│   └── Selection Highlight (Image - nur bei active)
+├── Slot_2 (SlotView)
+├── ...
+└── Slot_9 (SlotView)
+```
+
+**Flow - UI Update bei Inventar-Änderung:**
+```
+InventoryManager.OnInventoryChanged Event
+    ↓
+InventoryBar.OnInventoryChanged()
+    ↓
+Für jeden HotBar-Slot (0-8):
+    - inventoryIndex = HotBarManager.hotbarSlotToInventoryIndex[i]
+    - slot = InventoryManager.GetInventorySlotCopy(inventoryIndex)
+    - slotViews[i].UpdateDisplay(slot.item?.icon, slot.amount)
+```
+
+**Flow - Selection Highlight:**
+```
+HotBarManager.OnHotBarSelectionChanged Event
+    ↓
+InventoryBar.OnSelectionChanged(int newIndex)
+    ↓
+Alle SlotViews: Deaktiviere Highlight
+    ↓
+slotViews[newIndex]: Aktiviere Highlight
+```
+
+---
+
+### SlotView
+**Verantwortlichkeit:**
+- Einzelner UI-Slot (wiederverwendbare Komponente)
+- Zeigt Item-Icon, Anzahl, Selection-State
+
+**Komponenten:**
+```csharp
+[SerializeField] private Image iconImage;
+[SerializeField] private Text amountText;
+[SerializeField] private Image selectionHighlight;
+
+public void UpdateDisplay(Sprite icon, int amount)
+{
+    if (icon == null)
+    {
+        iconImage.enabled = false;
+        amountText.enabled = false;
+    }
+    else
+    {
+        iconImage.enabled = true;
+        iconImage.sprite = icon;
+        
+        amountText.enabled = amount > 1;
+        amountText.text = amount.ToString();
+    }
+}
+
+public void SetSelected(bool isSelected)
+{
+    selectionHighlight.enabled = isSelected;
+}
+```
+
+**Verwendung:**
+- In InventoryBar (HotBar)
+- [Später: In großem Inventar-Grid]
+- [Später: In Crafting-UI]
+
+---
+
+### UI_PanelReference (?)
+**Verantwortlichkeit:**
+- [Vermutlich Helper-Skript für Panel-Referenzen?]
+- [Macht TabManager einfacher, Panels zu finden?]
+
+---
+
+### MatchButtonToPanel (?)
+**Verantwortlichkeit:**
+- [Verbindet Tab-Button mit entsprechendem Content-Panel?]
+- [Automatisches Setup für Tab-System?]
+
+---
+
+## 8. Code-Konventionen & Patterns
+
+### Naming Conventions
+
+**Aktueller Zustand:** Noch nicht vollständig konsistent
+
+**Empfohlene Standard-Konventionen (C# Standard):**
+```csharp
+// Klassen & Structs
+public class PlayerMovement          // PascalCase
+
+// Methoden
+public void MovePlayer()             // PascalCase
+
+// Public Properties
+public int MaxHealth { get; set; }   // PascalCase
+
+// Private Felder
+private int currentHealth;           // camelCase
+[SerializeField] private float moveSpeed;  // camelCase
+
+// Konstanten
+private const int MAX_INVENTORY_SIZE = 36;  // UPPER_SNAKE_CASE
+public const string PLAYER_TAG = "Player";
+
+// Methoden-Parameter
+public void AddItem(ItemTemplate item, int amount)  // camelCase
+
+// Lokale Variablen
+void Start()
+{
+    int healthBonus = 10;            // camelCase
+}
+```
+
+**Aktuell im Projekt verwendet:**
+```csharp
+// Methoden-Argumente: t_name (sollte zu camelCase wechseln)
+void AddItem(ItemTemplate t_item, int t_amount)  // Alt
+
+// Manager-Referenzen: _manager
+private InventoryManager _manager;  // Alt (sollte zu camelCase)
+```
+
+**Empfehlung für Konsistenz:**
+```csharp
+// Private Felder mit SerializeField
+[SerializeField] private float moveSpeed = 5f;
+[SerializeField] private Transform spawnPoint;
+
+// Private Felder ohne SerializeField  
+private InventoryManager inventoryManager;
+private int currentHealth;
+
+// Methoden-Parameter
+public void AddItem(ItemTemplate item, int amount)
+{
+    // Implementation
+}
+```
+
+---
+
+### Singleton-Pattern
+
+**Standard-Implementation im Projekt:**
+```csharp
+public class Player : MonoBehaviour
+{
+    public static Player Instance { get; private set; }
+    
+    private void Awake()
+    {
+        // Singleton-Check
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        
+        Instance = this;
+        DontDestroyOnLoad(gameObject);
+        
+        // Weitere Awake-Logik hier...
+    }
+}
+```
+
+**Verwendet bei:**
+- Player
+- Alle Manager (via BootStrapper)
+- SceneTransitionManager
+- InputService
+- InventoryManager
+- HotBarManager
+
+**Vorteile:**
+- Einfacher Zugriff: `Player.Instance.transform.position`
+- Persistent über Szenen (DontDestroyOnLoad)
+- Verhindert Duplikate
+
+**Nachteil:**
+- Tight Coupling (Manager kennen sich direkt)
+- Schwerer zu testen
+
+---
+
+### Event-System
+
+**Verwendetes System:** C# Events mit `Action` und `Action<T>`
+
+**Standard-Pattern:**
+```csharp
+// In der Klasse die Event feuert
+public class HotBarManager : MonoBehaviour
+{
+    // Event deklarieren
+    public event Action<int> OnHotBarSelectionChanged;
+    
+    public void SelectSlot(int index)
+    {
+        currentSelectedSlot = index;
+        
+        // Event feuern (null-check für safety)
+        OnHotBarSelectionChanged?.Invoke(index);
+    }
+}
+
+// In der Klasse die reagiert
+public class InventoryBar : MonoBehaviour
+{
+    private HotBarManager hotBarManager;
+    
+    void Start()
+    {
+        hotBarManager = HotBarManager.Instance;
+        
+        // Event abonnieren
+        hotBarManager.OnHotBarSelectionChanged += HandleSelectionChanged;
+    }
+    
+    void OnDestroy()
+    {
+        // WICHTIG: Event abmelden um Memory Leaks zu vermeiden
+        if (hotBarManager != null)
+        {
+            hotBarManager.OnHotBarSelectionChanged -= HandleSelectionChanged;
+        }
+    }
+    
+    private void HandleSelectionChanged(int newIndex)
+    {
+        // Reagiere auf Event
+        UpdateSelectionHighlight(newIndex);
+    }
+}
+```
+
+**Beispiel-Events im Projekt:**
+```csharp
+// HotBarManager
+public event Action<int> OnHotBarSelectionChanged;
+
+// InventoryManager
+public event Action OnInventoryChanged;
+
+// InputService (vermutlich)
+public event Action<Vector2> OnMovePerformed;
+public event Action OnInteractPerformed;
+public event Action OnUseToolPerformed;
+public event Action<int> OnHotBarSlotPressed;
+```
+
+**Best Practices:**
+- Event-Namen beginnen mit `On` (z.B. `OnInventoryChanged`)
+- Immer `?.Invoke()` nutzen (null-safe)
+- **KRITISCH:** Events in `OnDestroy()` abmelden!
+- Für komplexe Event-Daten: Custom EventArgs nutzen
+
+---
+
+### MonoBehaviour Lifecycle
+
+**Aktuelle Verwendung:** Noch nicht vollständig konsistent
+
+**Standard-Richtlinien:**
+
+```csharp
+void Awake()
+{
+    // 1. Singleton-Setup
+    // 2. Komponenten auf eigenem GameObject finden (GetComponent)
+    // 3. Initialisierung die NICHT von anderen Objekten abhängt
+    
+    // Beispiel:
+    rb = GetComponent<Rigidbody2D>();
+    animator = GetComponent<Animator>();
+    Instance = this;
+}
+
+void Start()
+{
+    // 1. Referenzen zu ANDEREN Objekten holen (FindObjectOfType, Singletons)
+    // 2. Events abonnieren
+    // 3. Initialisierung die von anderen Objekten abhängt
+    
+    // Beispiel:
+    inventoryManager = InventoryManager.Instance;
+    inventoryManager.OnInventoryChanged += HandleInventoryChanged;
+    InitializeUI();
+}
+
+void Update()
+{
+    // 1. Input-Abfragen (falls nicht über Events)
+    // 2. Frame-basierte Logik
+    // 3. Animationen, UI-Updates
+    
+    // NICHT für Physics!
+    
+    // Beispiel:
+    HandleInput();
+    UpdateAnimations();
+}
+
+void FixedUpdate()
+{
+    // NUR für Physics-basierte Bewegung
+    // Läuft mit fixer Framerate (default: 50x/Sekunde)
+    
+    // Beispiel (PlayerMovement):
+    rb.velocity = moveDirection * moveSpeed;
+}
+
+void OnDestroy()
+{
+    // Events abmelden (Memory Leaks vermeiden!)
+    
+    // Beispiel:
+    if (inventoryManager != null)
+    {
+        inventoryManager.OnInventoryChanged -= HandleInventoryChanged;
+    }
+}
+```
+
+**Verwendung im Projekt:**
+- `Awake`: Singleton-Setup, GetComponent
+- `Start`: Unterschiedlich verwendet (sollte konsistenter werden)
+- `FixedUpdate`: Nur in PlayerMovement (korrekt!)
+- `Update`: [Wo wird es verwendet?]
+- `OnDestroy`: [Sollte für Event-Cleanup verwendet werden]
+
+**Empfehlung:**
+```
+Awake  → "Setup für mich selbst"
+Start  → "Setup mit anderen"
+Update → "Nicht-Physics Logik"
+FixedUpdate → "Nur Physics"
+OnDestroy → "Cleanup (Events!)"
+```
+
+---
+
+### Unity Input System (New Input System)
+
+**Verwendetes System:** Unity's New Input System
+
+**Architektur:**
+```
+Input Actions Asset (Player.inputactions)
+    ↓
+InputService (liest Input, feuert Events)
+    ↓
+PlayerInputReceiver / InventoryInputHandler (abonnieren Events)
+    ↓
+Player-Logik (Movement, Interact, etc.)
+```
+
+**Action Maps:**
+```
+PlayerControls:
+- Move (Vector2)
+- Interact
+- UseTool
+- ToggleInventory
+- HotBarSlot1-9
+
+UI_Controls:
+- NavigateTabs
+- CloseMenu
+- [weitere UI-Inputs]
+```
+
+**Switching zwischen Action Maps:**
+```csharp
+// In MenuUIManager oder InputService
+playerControls.Player.Disable();
+playerControls.UI.Enable();
+```
+
+---
+
+### Common Patterns
+
+**Null-Check Pattern:**
+```csharp
+// Vor Singleton-Zugriff
+if (InventoryManager.Instance != null)
+{
+    InventoryManager.Instance.AddItem(item, 1);
+}
+
+// Oder mit Null-Conditional
+InventoryManager.Instance?.AddItem(item, 1);
+```
+
+**Component Pattern:**
+```csharp
+// Finde Component, logge Warnung wenn nicht gefunden
+Rigidbody2D rb = GetComponent<Rigidbody2D>();
+if (rb == null)
+{
+    Debug.LogError("Rigidbody2D not found on " + gameObject.name);
+}
+```
+
+**Interface Pattern (IItemUseHandler):**
+```csharp
+// Flexibles System für verschiedene Objekt-Typen
+Collider2D[] hits = Physics2D.OverlapCircleAll(position, radius);
+foreach (var hit in hits)
+{
+    IItemUseHandler handler = hit.GetComponent<IItemUseHandler>();
+    if (handler != null)
+    {
+        handler.OnItemUse(item, player);
+    }
+}
+```
+
+---
+
+## 9. Offene Fragen & TODOs
+
+### Aktueller Entwicklungsstand
+
+**Fertige Systeme:**
+- ✅ Bootstrap-System mit Manager-Initialisierung
+- ✅ Player-Movement (Rigidbody2D, 4-Richtungen, Animationen)
+- ✅ Input-System (Unity New Input System mit Events)
+- ✅ Tool-System (Animation Events, OverlapCircle, IItemUseHandler)
+- ✅ Tree-Fällen mit Axt funktioniert
+- ✅ HotBar-System (9 Slots, Selection via 1-9)
+- ✅ HotBar-UI (permanent sichtbar, Highlights)
+- ✅ Szenen-Übergänge (DoorTrigger, SpawnPoints, AsyncLoad)
+- ✅ Camera-Follow mit Cinemachine
+
+**Teilweise fertig:**
+- ⚠️ Inventory-System (Basis-Methoden vorhanden, aber Stack-Logik unvollständig)
+- ⚠️ Drop-System (Struktur da, aber funktioniert noch nicht richtig)
+- ⚠️ UI-Menü-System (Struktur vorhanden, aber Tabs noch nicht implementiert)
+- ⚠️ Context-Interaktionen (ohne Tool, z.B. Schilder lesen - unfertig)
+- ⚠️ Input-Context-Switching (Player vs. UI Controls - möglicherweise nicht vollständig funktional)
+
+**Noch nicht implementiert:**
+- ❌ Großes Inventar-UI (Grid-Ansicht)
+- ❌ Tab-System (Inventory, Crafting, Skills, etc.)
+- ❌ Farming-System (Crops pflanzen, wachsen, ernten)
+- ❌ Crafting-System
+- ❌ NPC-System
+- ❌ Quest-System
+- ❌ Save/Load-System
+- ❌ Camera Confiner (Map-Grenzen)
+- ❌ Audio-System
+
+---
+
+### Bekannte Probleme
+
+```
+1. Drop-System spawnt Items nicht zuverlässig
+   → Tree.OnTreeFelled() ruft DropSystem auf, aber Drops erscheinen nicht
+
+2. Inventar Stack-Logik unvollständig
+   → AddItem() prüft noch nicht auf stackbare Items richtig
+   → "Inventar voll"-Handling fehlt
+
+3. Code-Konsistenz
+   → Naming Conventions nicht einheitlich (t_parameter, _fields)
+   → Awake vs. Start Verwendung inkonsistent
+   → Event-Cleanup in OnDestroy() fehlt teilweise
+
+4. Input-Context-Switching unsicher
+   → Wechsel zwischen Player Controls und UI Controls funktioniert möglicherweise nicht richtig
+   → Player könnte sich bewegen während Menü offen ist
+```
+
+---
+
+### Nächste Schritte (Priorität)
+
+**Kurzfristig (nächste 1-2 Sessions):**
+1. Drop-System reparieren (Items spawnen nach Tree-Fällen)
+2. Inventar Stack-Logik vervollständigen
+3. Großes Inventar-UI implementieren (Grid mit SlotViews)
+
+**Mittelfristig:**
+4. Tab-System implementieren (UI-Struktur ist bereits da)
+5. Context-Interaktionen fertigstellen (Schilder, NPCs)
+6. Farming-Basis: Boden bearbeiten mit Hoe
+
+**Langfristig:**
+7. Crafting-System
+8. Save/Load-System
+9. NPC-Dialog-System
+10. Quest-System
+
+---
+
+### Code-Refactoring TODOs
+
+```
+1. Naming Conventions vereinheitlichen
+   - t_parameter → parameter
+   - _manager → manager
+   - Konstanten zu UPPER_SNAKE_CASE
+
+2. MonoBehaviour Lifecycle konsistent nutzen
+   - Awake: Eigene Komponenten, Singleton
+   - Start: Andere Objekte, Event-Subscriptions
+   - OnDestroy: Event-Cleanup hinzufügen
+
+3. Event-Cleanup implementieren
+   - Alle Event-Subscriptions in OnDestroy() abmelden
+   - Memory Leaks vermeiden
+
+4. Error-Handling verbessern
+   - SpawnPoint nicht gefunden → Default-Position?
+   - Item nicht in ItemDataBase → Log Warning
+   - Inventar voll → Feedback an Player
+```
+
+---
+
+## 10. Notizen für AI-Assistenten
+
+### Wichtige Designentscheidungen
+```
+- Wir nutzen Singletons für Manager (einfacher Zugriff, DontDestroyOnLoad)
+- Input wird über InputService mit Events zentralisiert (Entkopplung)
+- Player ist persistent über Szenen (DontDestroyOnLoad, Singleton)
+- Tool-System nutzt Animation Events (Hit trifft nur im richtigen Frame)
+- HotBar ist nicht separate Liste, sondern Index-Mapping auf Inventar
+- IItemUseHandler Interface ermöglicht flexibles Tool-System
+- Szenen-Übergänge via AsyncLoad für bessere Performance
+```
+
+---
+
+### Bei Code-Vorschlägen beachten
+
+**WICHTIG - Lern-Fokus:**
+```
+✅ Pseudo-Code bevorzugen statt direkter Code
+✅ Konzepte erklären und Denkprozess zeigen
+✅ Fragen stellen: "Wie würdest du X implementieren?"
+✅ Hinweise auf Best Practices geben
+✅ Nach relevanten Code-Stellen fragen
+
+❌ NICHT direkt vollständigen C#-Code geben
+❌ NICHT Lösungen vorkauen ohne Erklärung
+```
+
+**Workflow bei Feature-Requests:**
+1. Frage nach relevanten Code-Stellen
+2. Analysiere bestehenden Code zusammen
+3. Erkläre Konzept/Ansatz in Pseudo-Code
+4. Gib Hinweise auf Fallstricke
+5. Lass Raum für eigene Implementation
+
+**Beispiel - Gut:**
+```
+"Um das Drop-System zu fixen, schauen wir uns Tree.cs an.
+Zeig mir die OnTreeFelled() Methode.
+
+Dann prüfen wir:
+1. Wird DropSystem korrekt aufgerufen?
+2. Hat der DropTable valide Einträge?
+3. Wird das DroppedItem-Prefab richtig instanziiert?
+
+Der Flow sollte so aussehen:
+- Berechne Drop-Chance für jeden Entry
+- Wenn erfolgreich: Instantiate(prefab, position, rotation)
+- Initialisiere DroppedItem mit ItemTemplate und amount
+
+Wo könnte der Fehler liegen?"
+```
+
+**Beispiel - Schlecht:**
+```csharp
+// Hier ist der fertige Code für Tree.cs:
+private void OnTreeFelled()
+{
+    foreach (var drop in dropTable.drops)
+    {
+        if (Random.value < drop.chance)
+        {
+            // ... kompletter Code
+        }
+    }
+}
+```
+
+---
+
+### Projekt-Kontext für bessere Hilfe
+```
+- Ich lerne C# und Unity
+- Dies ist ein Lernprojekt (Qualität > Schnelligkeit)
+- Ich baue ein Stardew Valley-ähnliches Spiel
+- Ich will Patterns und Best Practices verstehen
+- Code sollte zu bestehender Architektur passen
+- Einfache, wartbare Lösungen bevorzugen
+```
+
+---
+
+### Typische Arbeitsweise
+```
+1. Ich lade diese Doku hoch
+2. Ich beschreibe mein Problem/Feature
+3. AI fragt nach relevantem Code
+4. Zusammen analysieren wir das Problem
+5. AI gibt Pseudo-Code/Konzept-Erklärung
+6. Ich implementiere selbst
+7. Bei Fragen: Iterativer Prozess
+```
