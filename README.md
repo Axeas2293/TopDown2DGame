@@ -26,3 +26,4 @@ This is a private, learning project which is exclusively made for my enjoyment.
 ## Status
 
 Work in progress / experimental project.
+A technical documentation for core methods and classes has been created
